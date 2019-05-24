@@ -1,6 +1,6 @@
 # Create a resource group if it doesn’t exist
 resource "azurerm_resource_group" "presentation" {
-    name     = "Devs"
+    name     = "LB"
     location = "eastus"
 
     tags {
@@ -31,8 +31,7 @@ resource "azurerm_subnet" "presentation" {
 
 # Create public IPs
 resource "azurerm_public_ip" "presentation" {
-    count                        = 2
-    name                         = "Presentation_myPublicIP-${count.index}"
+    name                         = "Presentation_myPublicIP"
     location                     = "${azurerm_resource_group.presentation.location}"
     resource_group_name          = "${azurerm_resource_group.presentation.name}"
     allocation_method            = "Dynamic"
@@ -104,6 +103,24 @@ resource "azurerm_network_security_group" "presentation" {
 }
 
 
+
+resource "azurerm_lb" "presentation" {
+    name                = "loadBalancer"
+    location            = "${azurerm_resource_group.presentation.location}"
+    resource_group_name = "${azurerm_resource_group.presentation.name}"
+
+    frontend_ip_configuration {
+        name                 = "publicIPAddress"
+        public_ip_address_id = "${azurerm_public_ip.presentation.id}"
+    }
+}
+
+resource "azurerm_lb_backend_address_pool" "presentation" {
+    resource_group_name = "${azurerm_resource_group.presentation.name}"
+    loadbalancer_id     = "${azurerm_lb.presentation.id}"
+    name                = "BackEndAddressPool"
+}
+
 # Create network interface
 resource "azurerm_network_interface" "presentation" {
     count                     = 2
@@ -116,7 +133,7 @@ resource "azurerm_network_interface" "presentation" {
         name                          = "presentation-NicConfiguration"
         subnet_id                     = "${azurerm_subnet.presentation.id}"
         private_ip_address_allocation = "Dynamic"
-        public_ip_address_id          = "${element(azurerm_public_ip.presentation.*.id, count.index)}"
+//        load_balancer_backend_address_pools_ids = ["${azurerm_lb_backend_address_pool.presentation.id}"]
     }
 
     tags {
@@ -124,13 +141,28 @@ resource "azurerm_network_interface" "presentation" {
     }
 }
 
+resource "azurerm_network_interface_backend_address_pool_association" "presentation" {
+  count                   = 2
+  network_interface_id    = "${element(azurerm_network_interface.presentation.*.id, count.index)}"
+  ip_configuration_name   = "presentation-NicConfiguration"
+  backend_address_pool_id = "${azurerm_lb_backend_address_pool.presentation.id}"
+}
 
+resource "azurerm_availability_set" "presentation" {
+ name                         = "avset"
+ location                     = "${azurerm_resource_group.presentation.location}"
+ resource_group_name          = "${azurerm_resource_group.presentation.name}"
+ platform_fault_domain_count  = 2
+ platform_update_domain_count = 2
+ managed                      = true
+}
 
 # Create virtual machine 1
 resource "azurerm_virtual_machine" "presentation" {
     count                 = 2
     name                  = "presentation-${count.index}"
     location              = "${azurerm_resource_group.presentation.location}"
+    availability_set_id   = "${azurerm_availability_set.presentation.id}"
     resource_group_name   = "${azurerm_resource_group.presentation.name}"
     network_interface_ids = ["${element(azurerm_network_interface.presentation.*.id, count.index)}"]
     vm_size               = "Standard_B1ms"
