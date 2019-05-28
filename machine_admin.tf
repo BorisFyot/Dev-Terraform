@@ -3,11 +3,11 @@ resource "google_compute_instance" "admin-instance" {
   machine_type = "f1-micro"
   zone         = "${var.zone}"
 
-  tags = ["web"]
+  tags = ["admin"]
 
   boot_disk {
     initialize_params {
-      image = "debian-cloud/debian-9"
+      image = "centos-7"
     }
   }
 

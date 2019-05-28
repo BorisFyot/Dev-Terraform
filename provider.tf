@@ -10,8 +10,9 @@ resource "google_compute_firewall" "default" {
 
   allow {
     protocol = "tcp"
-    ports    = ["80", "22"]
+    ports    = ["8080", "22"]
   }
+  target_tags = ["admin"]
 }
 
 resource "google_compute_project_metadata_item" "ssh-keys" {
@@ -21,16 +22,24 @@ resource "google_compute_project_metadata_item" "ssh-keys" {
 
 resource "google_compute_subnetwork" "admin" {
   name          = "admin-subnetwork"
-  ip_cidr_range = "10.5.0.0/24"
+  ip_cidr_range = "10.5.0.0/21"
   region        = "${var.region}"
   network       = "${google_compute_network.my-network.self_link}"
 }
 
 resource "google_compute_subnetwork" "kube" {
-  name          = "kube-subnetwork"
-  ip_cidr_range = "10.6.0.0/24"
+  name          = "kube-subnetwork-pod"
+  ip_cidr_range = "10.6.0.0/21"
   region        = "${var.region}"
   network       = "${google_compute_network.my-network.self_link}"
+  secondary_ip_range {
+    range_name    = "kube-subnetwork-node"
+    ip_cidr_range = "10.7.0.0/21"
+  }
+  secondary_ip_range {
+    range_name    = "kube-subnetwork-service"
+    ip_cidr_range = "10.8.0.0/21"
+  }
 }
 
 resource "google_compute_network" "my-network" {
