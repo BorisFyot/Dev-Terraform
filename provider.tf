@@ -4,16 +4,60 @@ provider "google" {
   region      = "${var.region}"
 }
 
-resource "google_compute_firewall" "default" {
-  name    = "test-firewall"
+resource "google_compute_firewall" "admin" {
+  name    = "admin-firewall"
   network = "${google_compute_network.my-network.name}"
 
   allow {
     protocol = "tcp"
-    ports    = ["8080", "22"]
+    ports    = ["8080", "22", "80"]
   }
   target_tags = ["admin"]
 }
+
+
+resource "google_compute_firewall" "nexus" {
+  name    = "nexus-firewall"
+  network = "${google_compute_network.my-network.name}"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["8081","22"]
+  }
+  target_tags = ["nexus"]
+}
+
+
+resource "google_compute_firewall" "jenkins" {
+  name    = "jenkinss-firewall"
+  network = "${google_compute_network.my-network.name}"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["8080","22"]
+  }
+  target_tags = ["jenkins"]
+}
+
+
+resource "google_compute_router" "vpc-router" {
+  name    = "${google_compute_network.my-network.name}-router"
+  region  = "${var.region}"
+  network = "${google_compute_network.my-network.self_link}"
+  bgp {
+    asn = 64514
+  }
+}
+
+resource "google_compute_router_nat" "vpc-nat" {
+  name                               = "${google_compute_network.my-network.name}-nat"
+  router                             = "${google_compute_router.vpc-router.name}"
+  region                             = "${var.region}"
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  //nat_ips                            = ["${google_compute_address.vpc-address.self_link}"]
+  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+}
+
 
 resource "google_compute_project_metadata_item" "ssh-keys" {
   key   = "ssh-keys"
@@ -42,9 +86,30 @@ resource "google_compute_subnetwork" "kube" {
   }
 }
 
+resource "google_compute_subnetwork" "jenkins" {
+  name          = "jenkins-subnetwork"
+  ip_cidr_range = "10.9.0.0/21"
+  region        = "${var.region}"
+  network       = "${google_compute_network.my-network.self_link}"
+}
+
+resource "google_compute_subnetwork" "maven" {
+  name          = "maven-subnetwork"
+  ip_cidr_range = "10.10.0.0/21"
+  region        = "${var.region}"
+  network       = "${google_compute_network.my-network.self_link}"
+}
+
+resource "google_compute_subnetwork" "nexus" {
+  name          = "nexus-subnetwork"
+  ip_cidr_range = "10.11.0.0/21"
+  region        = "${var.region}"
+  network       = "${google_compute_network.my-network.self_link}"
+}
+
 resource "google_compute_network" "my-network" {
   provider = "google"
-  name = "myproject"
+  name = "projectfinal"
   auto_create_subnetworks = "false"
 }
 
